@@ -22,6 +22,7 @@ use Psr\Http\Message\ResponseInterface;
 class YobitTradeApi
 {
     const BASE_URI = 'https://yobit.net/tapi/';
+    const MAX_INVALID_NONCES = 10;
 
     /**
      * @var Client
@@ -47,6 +48,8 @@ class YobitTradeApi
      * @var FileCookieJar
      */
     protected $cookies;
+
+    protected $invalidNoncesCount = 0;
 
     public function __construct(string $publicKey, string $privateKey)
     {
@@ -177,13 +180,22 @@ class YobitTradeApi
         }
 
         try {
-            return $this->handleResponse($response);
+            $response = $this->handleResponse($response);
+            $this->invalidNoncesCount = 0;
+            return $response;
         } catch (ApiDDosException $ex) {
             if ($retry) {
                 throw $ex;
             }
 
             return $this->cloudFlareChallenge($post);
+        } catch (InvalidNonceException $ex) {
+            if (static::MAX_INVALID_NONCES > $this->invalidNoncesCount) {
+                $this->invalidNoncesCount += 1;
+                return $this->getResponse($post['method'], $post);
+            } else {
+                $this->invalidNoncesCount = 0;
+            }
         }
     }
 
