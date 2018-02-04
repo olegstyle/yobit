@@ -1,0 +1,26 @@
+{
+  "name": "olegstyle/yobitapi",
+  "type": "library",
+  "description": "Yobit Api",
+  "license": "MIT",
+  "homepage": "http://bodev.pro/",
+  "authors": [
+    {
+      "name": "Oleh Borysenko",
+      "email": "olegstyle1@gmail.com",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": ">=7.1",
+    "guzzlehttp/guzzle": "^6.3"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "~5.7"
+  },
+  "autoload": {
+    "psr-4": {
+      "OlegStyle\\YobitApi\\": "src/"
+    }
+  }
+}
