@@ -12,6 +12,38 @@ Api documentation: https://yobit.net/en/api
 composer require olegstyle/yobitapi
 ```
 
+##### If it not available then try this:
+
+##### 1.1 Add it to composer repositories: 
+```
+"repositories": [
+    # ...
+    {
+        "type": "vcs",
+        "url": "https://git@bitbucket.org/dreamteam_ov/yobit-api.git"
+    }
+    # ...
+],
+```
+
+##### 1.2 Add it to composer require:
+```
+"require: {
+    "olegstyle/yobitapi": "dev-master"
+}
+```
+ 
+##### 1.3 Make:
+```
+composer install
+```
+
+##### or 
+
+```
+composer update
+```
+
 #### 2. Install PhantomJS. 
 It needs for get around Cloudflare.
 PhantomJS installation guide for ubuntu on down of readme
@@ -31,8 +63,8 @@ and trade api (`\OlegStyle\YobitApi\YobitTradeApi`)
 
 ```
 $pairs = [
-   new \OlegStyle\YobitApi\CurrencyPair('btc', 'eth'),
-   new \OlegStyle\YobitApi\CurrencyPair('bch, 'btc'),
+   new \OlegStyle\YobitApi\Models\CurrencyPair('btc', 'eth'),
+   new \OlegStyle\YobitApi\Models\CurrencyPair('bch, 'btc'),
 ];
 $publicApi = new \OlegStyle\YobitApi\YobitPublicApi();
 $publicApi->getInfo(); // get info about all pairs
