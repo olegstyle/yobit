@@ -56,7 +56,13 @@ class YobitTradeApi
         $this->publicApiKey = $publicKey;
         $this->privateApiKey = $privateKey;
         $this->userAgent = 'Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0';
-        $this->cookies = new FileCookieJar($this->getCookieFilePath(), true);
+        // check valid cookies
+        try {
+            $this->cookies = new FileCookieJar($this->getCookieFilePath(), true);
+        } catch (\Exception $ex) {
+            file_put_contents($this->getCookieFilePath(), json_encode([]));
+            $this->cookies = new FileCookieJar($this->getCookieFilePath(), true);
+        }
 
         $this->client = new Client([
             'base_uri' => static::BASE_URI,
@@ -180,9 +186,9 @@ class YobitTradeApi
         }
 
         try {
-            $response = $this->handleResponse($response);
+            $result = $this->handleResponse($response);
             $this->invalidNoncesCount = 0;
-            return $response;
+            return $result;
         } catch (ApiDDosException $ex) {
             if ($retry) {
                 throw $ex;
@@ -192,9 +198,12 @@ class YobitTradeApi
         } catch (InvalidNonceException $ex) {
             if (static::MAX_INVALID_NONCES > $this->invalidNoncesCount) {
                 $this->invalidNoncesCount += 1;
+
                 return $this->getResponse($post['method'], $post);
             } else {
                 $this->invalidNoncesCount = 0;
+
+                throw $ex;
             }
         }
     }
