@@ -35,6 +35,6 @@ class CurrencyPair
     {
         $pair = explode('_', $pair);
 
-        return new self($pair[0], $pair[1]);
+        return new static($pair[0], $pair[1]);
     }
 }
