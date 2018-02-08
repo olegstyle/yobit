@@ -7,9 +7,11 @@ use GuzzleHttp\Cookie\FileCookieJar;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\RequestException;
 use OlegStyle\YobitApi\Exceptions\ApiBadResponseException;
+use OlegStyle\YobitApi\Exceptions\ApiBlockedException;
 use OlegStyle\YobitApi\Exceptions\ApiDDosException;
 use OlegStyle\YobitApi\Exceptions\ApiDisabledException;
 use OlegStyle\YobitApi\Exceptions\InvalidNonceException;
+use OlegStyle\YobitApi\Exceptions\YobitApiException;
 use OlegStyle\YobitApi\Models\CurrencyPair;
 use Psr\Http\Message\ResponseInterface;
 
@@ -57,12 +59,7 @@ class YobitTradeApi
         $this->privateApiKey = $privateKey;
         $this->userAgent = 'Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0';
         // check valid cookies
-        try {
-            $this->cookies = new FileCookieJar($this->getCookieFilePath(), true);
-        } catch (\Exception $ex) {
-            file_put_contents($this->getCookieFilePath(), json_encode([]));
-            $this->cookies = new FileCookieJar($this->getCookieFilePath(), true);
-        }
+        $this->updateCookies();
 
         $this->client = new Client([
             'base_uri' => static::BASE_URI,
@@ -76,7 +73,7 @@ class YobitTradeApi
 
     protected function getCookieFileName(): string
     {
-        return 'yobit_trade_' . md5($this->publicApiKey . $this->privateApiKey) . '_cookie.txt';
+        return 'yobit_cookie_' . hash('sha512', $this->publicApiKey . $this->privateApiKey) . '.txt';
     }
 
     protected function getCookieFilePath(): string
@@ -84,8 +81,19 @@ class YobitTradeApi
         return __DIR__ . '/' . $this->getCookieFileName();
     }
 
+    protected function updateCookies()
+    {
+        $path = $this->getCookieFilePath();
+        try {
+            $this->cookies = new FileCookieJar($path, true);
+        } catch (\Exception $ex) {
+            unlink($this->getCookieFilePath());
+            $this->cookies = new FileCookieJar($path, true);
+        }
+    }
+
     /**
-     * @throws ApiDDosException|ApiDisabledException|ApiBadResponseException
+     * @throws YobitApiException
      */
     protected function cloudFlareChallenge(array $post): ?array
     {
@@ -118,14 +126,14 @@ class YobitTradeApi
         $result = json_encode($result);
         file_put_contents($this->getCookieFilePath(), $result);
 
-        $this->cookies = new FileCookieJar($this->getCookieFilePath(), true);
+        $this->updateCookies();
 
         return $this->getResponse('', $post, true);
     }
 
     public function getNonceFileName()
     {
-        return 'yobit_nonce_' . md5($this->publicApiKey . $this->privateApiKey) . '.txt';
+        return 'yobit_nonce_' . hash('sha512', $this->publicApiKey . $this->privateApiKey) . '.txt';
     }
 
     public function getNonceFilePath()
@@ -161,7 +169,7 @@ class YobitTradeApi
     }
 
     /**
-     * @throws ApiDDosException|ApiDisabledException|ApiBadResponseException|InvalidNonceException
+     * @throws YobitApiException
      */
     public function getResponse(string $method, array $post = [], ?bool $retry = false): array
     {
@@ -195,6 +203,14 @@ class YobitTradeApi
             }
 
             return $this->cloudFlareChallenge($post);
+        } catch (ApiBlockedException $ex) {
+            if ($retry) {
+                throw $ex;
+            }
+            unlink($this->getCookieFilePath());
+            $this->updateCookies();
+
+            return $this->getResponse($post['method'], $post, true);
         } catch (InvalidNonceException $ex) {
             if (static::MAX_INVALID_NONCES > $this->invalidNoncesCount) {
                 $this->invalidNoncesCount += 1;
@@ -209,7 +225,8 @@ class YobitTradeApi
     }
 
     /**
-     * @throws ApiDisabledException|ApiDDosException|ApiBadResponseException|InvalidNonceException
+     * @throws ApiDisabledException|ApiDDosException|ApiBadResponseException
+     * @throws InvalidNonceException|ApiBlockedException
      */
     public function handleResponse(?ResponseInterface $response): ?array
     {
@@ -225,6 +242,10 @@ class YobitTradeApi
 
         if (preg_match('/ddos/i', $responseBody)) {
             throw new ApiDDosException($responseBody);
+        }
+
+        if (preg_match('/cloudflare/i', $responseBody) && preg_match('/block/i', $responseBody)) {
+            throw new ApiBlockedException($responseBody);
         }
 
         $result = json_decode($responseBody, true);
@@ -248,7 +269,7 @@ class YobitTradeApi
     }
 
     /**
-     * @throws ApiBadResponseException|ApiDDosException|ApiDisabledException|InvalidNonceException
+     * @throws YobitApiException
      */
     public function getInfo(): array
     {
@@ -256,7 +277,7 @@ class YobitTradeApi
     }
 
     /**
-     * @throws ApiBadResponseException|ApiDDosException|ApiDisabledException|InvalidNonceException
+     * @throws YobitApiException
      */
     public function getActiveOrders(CurrencyPair $pair): array
     {
@@ -266,7 +287,7 @@ class YobitTradeApi
     }
 
     /**
-     * @throws ApiBadResponseException|ApiDDosException|ApiDisabledException|InvalidNonceException
+     * @throws YobitApiException
      */
     public function trade(CurrencyPair $pair, string $type, float $rate, float $amount): array
     {
@@ -279,7 +300,7 @@ class YobitTradeApi
     }
 
     /**
-     * @throws ApiBadResponseException|ApiDDosException|ApiDisabledException|InvalidNonceException
+     * @throws YobitApiException
      */
     public function cancelOrder(int $orderId): array
     {
@@ -289,7 +310,7 @@ class YobitTradeApi
     }
 
     /**
-     * @throws ApiBadResponseException|ApiDDosException|ApiDisabledException|InvalidNonceException
+     * @throws YobitApiException
      */
     public function getOrderInfo(int $orderId): array
     {

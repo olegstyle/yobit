@@ -5,8 +5,10 @@ namespace OlegStyle\YobitApi;
 use GuzzleHttp\Cookie\FileCookieJar;
 use GuzzleHttp\Exception\ClientException;
 use GuzzleHttp\Exception\RequestException;
+use OlegStyle\YobitApi\Exceptions\ApiBlockedException;
 use OlegStyle\YobitApi\Exceptions\ApiDDosException;
 use OlegStyle\YobitApi\Exceptions\ApiDisabledException;
+use OlegStyle\YobitApi\Exceptions\YobitApiException;
 use OlegStyle\YobitApi\Models\CurrencyPair;
 use GuzzleHttp\Client;
 use Psr\Http\Message\ResponseInterface;
@@ -39,7 +41,7 @@ class YobitPublicApi
     public function __construct()
     {
         $this->userAgent = 'Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0';
-        $this->cookies = new FileCookieJar($this->getCookieFilePath(), true);
+        $this->updateCookies();
 
         $this->client = new Client([
             'base_uri' => static::BASE_URI,
@@ -52,9 +54,25 @@ class YobitPublicApi
         ]);
     }
 
+    protected function getCookieFileName(): string
+    {
+        return 'yobit_public_cookie.txt';
+    }
+
     protected function getCookieFilePath(): string
     {
-        return __DIR__ . '/yobit_cookie.txt';
+        return __DIR__ . '/' . $this->getCookieFileName();
+    }
+
+    protected function updateCookies()
+    {
+        $path = $this->getCookieFilePath();
+        try {
+            $this->cookies = new FileCookieJar($path, true);
+        } catch (\Exception $ex) {
+            unlink($this->getCookieFilePath());
+            $this->cookies = new FileCookieJar($path, true);
+        }
     }
 
     /**
@@ -92,9 +110,9 @@ class YobitPublicApi
     }
 
     /**
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
-    public function sendResponse(string $url, bool $afterCloudFlare = false): ?array
+    public function sendResponse(string $url, bool $retry = false): ?array
     {
         try {
             $response = $this->client->get($url, [
@@ -109,16 +127,24 @@ class YobitPublicApi
         try {
             return $this->handleResponse($response);
         } catch (ApiDDosException $ex) {
-            if ($afterCloudFlare) {
+            if ($retry) {
                 throw $ex;
             }
 
             return $this->cloudFlareChallenge($url);
+        } catch (ApiBlockedException $ex) {
+            if ($retry) {
+                throw $ex;
+            }
+            unlink($this->getCookieFilePath());
+            $this->updateCookies();
+
+            return $this->sendResponse($url, true);
         }
     }
 
     /**
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws ApiDisabledException|ApiDDosException|ApiBlockedException
      */
     public function handleResponse(?ResponseInterface $response): ?array
     {
@@ -136,13 +162,17 @@ class YobitPublicApi
             throw new ApiDDosException($responseBody);
         }
 
+        if (preg_match('/cloudflare/i', $responseBody) && preg_match('/block/i', $responseBody)) {
+            throw new ApiBlockedException($responseBody);
+        }
+
         return json_decode($responseBody, true);
     }
 
     /**
      * Get info about currencies
      *
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
     public function getInfo(): ?array
     {
@@ -168,7 +198,7 @@ class YobitPublicApi
      * @param CurrencyPair[] $pairs -> example ['ltc' => 'btc']
      * @return array|null
      *
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
     public function getDepths($pairs)
     {
@@ -180,7 +210,7 @@ class YobitPublicApi
     /**
      * @return array|null
      *
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
     public function getDepth(string $from, string $to)
     {
@@ -191,7 +221,7 @@ class YobitPublicApi
      * @param CurrencyPair[] $pairs -> example ['ltc' => 'btc']
      * @return array|null
      *
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
     public function getTrades(array $pairs)
     {
@@ -203,7 +233,7 @@ class YobitPublicApi
     /**
      * @return array|null
      *
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
     public function getTrade(string $from, string $to)
     {
@@ -214,7 +244,7 @@ class YobitPublicApi
      * @param CurrencyPair[] $pairs -> example ['ltc' => 'btc']
      * @return array|null
      *
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
     public function getTickers(array $pairs)
     {
@@ -226,7 +256,7 @@ class YobitPublicApi
     /**
      * @return array|null
      *
-     * @throws ApiDisabledException|ApiDDosException
+     * @throws YobitApiException
      */
     public function getTicker(string $from, string $to)
     {
