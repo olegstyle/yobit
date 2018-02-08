@@ -244,7 +244,7 @@ class YobitTradeApi
             throw new ApiDDosException($responseBody);
         }
 
-        if (preg_match('/cloudflare/i', $responseBody) && preg_match('/block/i', $responseBody)) {
+        if (preg_match('/cloudflare/i', $responseBody) && preg_match('/access denied/i', $responseBody)) {
             throw new ApiBlockedException($responseBody);
         }
 
