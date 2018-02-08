@@ -240,7 +240,7 @@ class YobitTradeApi
             throw new ApiDDosException($responseBody);
         }
 
-        if (preg_match('/ddos/i', $responseBody)) {
+        if (preg_match('/ddos/i', $responseBody) || preg_match('/enable cookies/i', $responseBody)) {
             throw new ApiDDosException($responseBody);
         }
 
