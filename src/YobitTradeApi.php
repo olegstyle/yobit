@@ -62,13 +62,18 @@ class YobitTradeApi
         $this->updateCookies();
 
         $this->client = new Client([
-            'base_uri' => static::BASE_URI,
+            'base_uri' => $this->getBaseUri(),
             'cookies' => $this->cookies,
             'timeout' => 30.0,
             'headers' => [
                 'User-Agent' => $this->userAgent,
             ]
         ]);
+    }
+
+    public function getBaseUri(): string
+    {
+        return static::BASE_URI;
     }
 
     protected function getCookieFileName(): string
@@ -180,6 +185,7 @@ class YobitTradeApi
 
         try {
             $response = $this->client->post('', [
+                'base_uri' => $this->getBaseUri(),
                 'form_params' => $post,
                 'cookies' => $this->cookies,
                 'headers' => [

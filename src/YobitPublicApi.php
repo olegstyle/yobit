@@ -44,7 +44,7 @@ class YobitPublicApi
         $this->updateCookies();
 
         $this->client = new Client([
-            'base_uri' => static::BASE_URI,
+            'base_uri' => $this->getBaseUri(),
             'timeout' => 30.0,
             'cookies' => $this->cookies,
             'headers' => [
@@ -52,6 +52,11 @@ class YobitPublicApi
                 'Content-type' => 'application/json',
             ]
         ]);
+    }
+
+    public function getBaseUri(): string
+    {
+        return static::BASE_URI;
     }
 
     protected function getCookieFileName(): string
@@ -116,6 +121,7 @@ class YobitPublicApi
     {
         try {
             $response = $this->client->get($url, [
+                'base_uri' => $this->getBaseUri(),
                 'cookies' => $this->cookies,
             ]);
         } catch (ClientException $ex) {
